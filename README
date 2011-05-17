@@ -1,0 +1,108 @@
+These Python scripts were written to facilitate a course project in Aalto
+University. As there is no better documentation for them yet, feel free to
+contact me with questions.
+
+=============================================================================
+Some quick notes
+=============================================================================
+All the scripts are quick and dirty implementations at this point of writing.
+
+These scripts operate either on Coral Reef's crl_flow tool output, output of
+tshark or tcptrace or on preprocessed variant of those (subset of columns,
+sorting, etc).
+
+flow2length.py:
+
+This script takes as input the output of crl_flow and prints flow lengths in
+bytes.
+
+flow2ports.py:
+
+This script takes as input the output of crl_flow and prints aggregates of
+bytes, flows and packets for each seen port number. There are options to filter
+only TCP/UDP flows (which makes sense) and consider only flows between ephemeral
+ports.
+
+flow2rank.py:
+
+This script takes as input the output of crl_flow and prints source-destination
+pairs with aggregated counts by specified column of input (command line
+parameter).
+
+flow2throughput.py:
+
+This script takes input with lines in form
+
+<bytes> \t <flow start> \t <flow end>
+
+and calculates throughput in interval averages (interval length in seconds is
+given on command line).
+
+flow2user.py:
+
+This script takes as input the output of crl_flow and prints traffic volume for
+each identified user (user is IP in range 10.0.0.0/8).
+
+packet2throughput.py:
+
+Similar to flow2throughput.py, but operates on packet level. Input is in form:
+
+<packet timestamp> \t <packet length>
+
+tcp2tcp.py:
+
+Takes the output of command:
+
+tcptrace -l -r -n --csv somefile.pcap | awk -F ', *' '/^[^#]/{print $26 "\t" $27
+"\t" $28 "\t" $29 "\t" $96 "\t" $97 "\t" $98 "\t" $99}'
+
+and appends to each line (TCP connection) the estimated total throughput during
+the connection, taking into account all captured traffic (command line argument
+is a file in the form of the input for packet2throughput.py).
+
+NOTE: This is quite unoptimized script and may take very long to run, depending
+on input!
+
+=============================================================================
+Some quick and dirty commands to demonstrate usage
+=============================================================================
+
+# eliminate bad flows - prepare for flow2throughput
+for i in `seq 0 6` ; do  echo $i ; cat $i-*.t2 | awk '/^[0-9]/{if ($11 >= $10) {print $8 "\t" $10 "\t" $11}}' | sort -k 2 -k 3 > $i-flows.raw ; done
+
+# src-dst pair rank by column (8 is bytes)
+cat 0-*.t2 | ../flow2rank.py 8
+
+# frequency for rank
+cat *.t2 | ../flow2rank.py 9 | cut -f 2 | uniq -c | sort -nr | awk '{print $2 "\t" $1}'
+
+# port summary
+# port  bytes   flows
+cat *.t2 |  ../flow2ports.py > full-ports.data
+
+# service ports by flows
+cat full-ports.data | awk '{if( $1 < 1024) {print}}' | sort -nr -k3
+
+# getting service per port
+cat full-ports.data | awk '{if( $1 < 1024) {print}}' | sort -nr -k3 | head -n 20 | cut -f1 | while read port ; do cat /etc/services | grep -m 1 "$port/" || echo $port ; done
+
+#combine the above two in a single file
+pr -w 1000 -tm foo-data foo-services | awk '{print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5}'
+
+# merge pacps
+for i in `seq 0 15` ; do ls raw-data.pcap$i ; done | xargs mergecap -w raw-data-big.pcap
+
+# generate flow data from pcaps
+crl_flow -Cai=1 -Csort -Ci=3600 -I -Tf60 -ci -O %Y-%m-%d-%H%M.%i.60.t2 raw-data-big.pcap
+
+# get packet sizes from raw pcap files
+for i in `seq 0 15` ; do echo $i ; tshark -t a -T fields -e ip.len -r raw-data.pcap$i ip >> packet-sizes ; done
+
+# get timestamp packet size from raw pcap
+tshark -t a -T fields -e frame.time_epoch -e ip.len -r raw-data.pcap0 ip
+
+# and with full frame seizes (including non-ip traffic)
+tshark -t a -T fields -e frame.time_epoch -e frame.len -r raw-data-big.pcap
+
+# tcptrace RTT and retransmition stats
+tcptrace -l -r -n --csv  raw-data-big.pcap | awk -F ', *' '/^[^#]/{print $26 "\t" $27 "\t" $28 "\t" $29 "\t" $96 "\t" $97 "\t" $98 "\t" $99}'
