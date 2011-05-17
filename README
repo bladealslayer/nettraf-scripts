@@ -68,13 +68,15 @@ Some quick and dirty commands to demonstrate usage
 =============================================================================
 
 # eliminate bad flows - prepare for flow2throughput
-for i in `seq 0 6` ; do  echo $i ; cat $i-*.t2 | awk '/^[0-9]/{if ($11 >= $10) {print $8 "\t" $10 "\t" $11}}' | sort -k 2 -k 3 > $i-flows.raw ; done
+for i in `seq 0 6` ; do  echo $i ; cat $i-*.t2 | awk '/^[0-9]/{if ($11 >= $10)
+{print $8 "\t" $10 "\t" $11}}' | sort -k 2 -k 3 > $i-flows.raw ; done
 
 # src-dst pair rank by column (8 is bytes)
 cat 0-*.t2 | ../flow2rank.py 8
 
 # frequency for rank
-cat *.t2 | ../flow2rank.py 9 | cut -f 2 | uniq -c | sort -nr | awk '{print $2 "\t" $1}'
+cat *.t2 | ../flow2rank.py 9 | cut -f 2 | uniq -c | sort -nr | awk '{print $2
+"\t" $1}'
 
 # port summary
 # port  bytes   flows
@@ -84,19 +86,25 @@ cat *.t2 |  ../flow2ports.py > full-ports.data
 cat full-ports.data | awk '{if( $1 < 1024) {print}}' | sort -nr -k3
 
 # getting service per port
-cat full-ports.data | awk '{if( $1 < 1024) {print}}' | sort -nr -k3 | head -n 20 | cut -f1 | while read port ; do cat /etc/services | grep -m 1 "$port/" || echo $port ; done
+cat full-ports.data | awk '{if( $1 < 1024) {print}}' | sort -nr -k3 | head -n 20
+| cut -f1 | while read port ; do cat /etc/services | grep -m 1 "$port/" || echo
+$port ; done
 
 #combine the above two in a single file
-pr -w 1000 -tm foo-data foo-services | awk '{print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5}'
+pr -w 1000 -tm foo-data foo-services | awk '{print $1 "\t" $2 "\t" $3 "\t" $4
+"\t" $5}'
 
 # merge pacps
-for i in `seq 0 15` ; do ls raw-data.pcap$i ; done | xargs mergecap -w raw-data-big.pcap
+for i in `seq 0 15` ; do ls raw-data.pcap$i ; done | xargs mergecap -w
+raw-data-big.pcap
 
 # generate flow data from pcaps
-crl_flow -Cai=1 -Csort -Ci=3600 -I -Tf60 -ci -O %Y-%m-%d-%H%M.%i.60.t2 raw-data-big.pcap
+crl_flow -Cai=1 -Csort -Ci=3600 -I -Tf60 -ci -O %Y-%m-%d-%H%M.%i.60.t2
+raw-data-big.pcap
 
 # get packet sizes from raw pcap files
-for i in `seq 0 15` ; do echo $i ; tshark -t a -T fields -e ip.len -r raw-data.pcap$i ip >> packet-sizes ; done
+for i in `seq 0 15` ; do echo $i ; tshark -t a -T fields -e ip.len -r
+raw-data.pcap$i ip >> packet-sizes ; done
 
 # get timestamp packet size from raw pcap
 tshark -t a -T fields -e frame.time_epoch -e ip.len -r raw-data.pcap0 ip
@@ -105,4 +113,5 @@ tshark -t a -T fields -e frame.time_epoch -e ip.len -r raw-data.pcap0 ip
 tshark -t a -T fields -e frame.time_epoch -e frame.len -r raw-data-big.pcap
 
 # tcptrace RTT and retransmition stats
-tcptrace -l -r -n --csv  raw-data-big.pcap | awk -F ', *' '/^[^#]/{print $26 "\t" $27 "\t" $28 "\t" $29 "\t" $96 "\t" $97 "\t" $98 "\t" $99}'
+tcptrace -l -r -n --csv  raw-data-big.pcap | awk -F ', *' '/^[^#]/{print $26
+"\t" $27 "\t" $28 "\t" $29 "\t" $96 "\t" $97 "\t" $98 "\t" $99}'
